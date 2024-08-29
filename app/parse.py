@@ -1,15 +1,18 @@
 import csv
+import os
 import time
 from dataclasses import dataclass
 from urllib.parse import urljoin
 
 from selenium import webdriver
 from selenium.common import NoSuchElementException
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.wait import WebDriverWait
+from tqdm import tqdm
 
 BASE_URL = "https://webscraper.io/"
 HOME_URL = "test-sites/e-commerce/more/"
@@ -18,7 +21,7 @@ URLS_TO_PARSE = {
     "home": "test-sites/e-commerce/more/",
     "laptops": "test-sites/e-commerce/more/computers/laptops",
     "tablets": "test-sites/e-commerce/more/computers/tablets",
-    "phones": "https://webscraper.io/test-sites/e-commerce/more/phones",
+    "phones": "test-sites/e-commerce/more/phones",
     "touch": "test-sites/e-commerce/more/phones/touch",
     "computers": "test-sites/e-commerce/more/computers",
 }
@@ -78,9 +81,8 @@ def parse_product_page(driver: WebDriver, url: str) -> [Product]:
             more_button = wait.until(ec.element_to_be_clickable(more_button))
         except NoSuchElementException:
             break
-        print(more_button)
         more_button.click()
-        time.sleep(1)
+        time.sleep(0.1)
 
     products = driver.find_elements(By.CSS_SELECTOR, ".product-wrapper")
     return [parse_product(product) for product in products]
@@ -92,8 +94,8 @@ def write_products_to_csv(filename: str, products: [Product]) -> None:
         csv_writer.writerow(
             ["title", "description", "price", "rating", "num_of_reviews"]
         )
-        csv_writer.writerows(
-            [
+        for product in tqdm(products, desc=f"Writing products to {filename}.csv", total=len(products), leave=True):
+            csv_writer.writerow(
                 [
                     product.title,
                     product.description,
@@ -101,20 +103,32 @@ def write_products_to_csv(filename: str, products: [Product]) -> None:
                     product.rating,
                     product.num_of_reviews,
                 ]
-                for product in products
-            ],
+            )
 
-        )
+
+def get_chrome_driver_options() -> Options:
+    options = Options()
+    options.add_argument("--headless")  # Enable headless mode
+    options.add_argument("--log-level=3")  # Suppresses logs (0=INFO, 1=WARNING, 2=LOG_ERROR, 3=FATAL)
+    options.add_argument("--silent")
+    return options
 
 
 def get_all_products() -> None:
-    driver = webdriver.Chrome()
-    for filename, url in URLS_TO_PARSE.items():
+    driver = webdriver.Chrome(options=get_chrome_driver_options())
+    tqdm_obj = tqdm(
+        URLS_TO_PARSE.items(),
+        desc=f"Scraping products from {BASE_URL}",
+        total=len(URLS_TO_PARSE), leave=True
+    )
+    for filename, url in tqdm_obj:
+        tqdm_obj.set_description(f"Scraping products from {BASE_URL} ({filename})")
         products = parse_product_page(
             driver,
             url
         )
         write_products_to_csv(filename, products)
+    driver.quit()
 
 
 if __name__ == "__main__":
