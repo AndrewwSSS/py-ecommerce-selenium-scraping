@@ -38,7 +38,9 @@ class Product:
 
 def parse_product(elem: WebElement) -> Product:
     return Product(
-        title=elem.find_element(By.CSS_SELECTOR, ".caption > h4 > a").text,
+        title=elem.find_element(
+            By.CSS_SELECTOR, ".caption > h4 > a"
+        ).get_attribute("title"),
         description=elem.find_element(
             By.CSS_SELECTOR, ".caption > p.description"
         ).text,
@@ -115,12 +117,14 @@ def get_chrome_driver_options() -> Options:
 
 
 def get_all_products() -> None:
-    driver = webdriver.Chrome(options=get_chrome_driver_options())
+    driver_options = get_chrome_driver_options()
+
     tqdm_obj = tqdm(
         URLS_TO_PARSE.items(),
         desc=f"Scraping products from {BASE_URL}",
         total=len(URLS_TO_PARSE), leave=True
     )
+    driver = webdriver.Chrome(options=driver_options)
     for filename, url in tqdm_obj:
         tqdm_obj.set_description(f"Scraping products from {BASE_URL} ({filename})")
         products = parse_product_page(
